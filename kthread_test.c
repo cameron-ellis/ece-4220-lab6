@@ -17,6 +17,7 @@
 
 
 #define GPIO_OUT6 (6)
+#define GPIO_OUT2 (2)
 
 MODULE_LICENSE("GPL");
 
@@ -35,16 +36,15 @@ int kthread_fn(void *ptr)
 	{
 
 		// Write code to generate Frequency on BCM 6 (SPKR) (GPIO_OUT6)
-
-
-
-
-
-		//msleep(1000);	// good for > 10 ms
+		gpio_set_value(GPIO_OUT6,1);
+		//gpio_set_value(GPIO_OUT2,1);
+		msleep(10);	// good for > 10 ms
+		gpio_set_value(GPIO_OUT6,0);
+		//gpio_set_value(GPIO_OUT2,0);
+		msleep(10);   // good for > 10 ms
 		//msleep_interruptible(1000); // good for > 10 ms
 		//udelay(unsigned long usecs);	// good for a few us (micro s)
 		//usleep_range(unsigned long min, unsigned long max); // good for 10us - 20 ms
-		
 		
 		// In an infinite loop, you should check if the kthread_stop
 		// function has been called (e.g. in clean up module). If so,
@@ -64,14 +64,23 @@ int kthread_fn(void *ptr)
 
 int thread_init(void)
 {
-
-
 	// Check if SPKR PIN is Valid and available to be allocated 
 	// Set it to be output
-
-
-
-
+	if (gpio_is_valid(GPIO_OUT6) == 1)
+	{
+		if(gpio_request(GPIO_OUT6, "SPEAKER") == 0) 
+		{
+			gpio_direction_output(GPIO_OUT6, 0);
+		}
+	}
+	if (gpio_is_valid(GPIO_OUT2) == 1)
+	{
+		if(gpio_request(GPIO_OUT2, "RED LED") == 0) 
+		{
+			gpio_direction_output(GPIO_OUT2, 0);
+		}
+	}
+	
 	char kthread_name[]="SoundGeneration_kthread";	// try running  ps -ef | grep SoundGeneration
 													// when the thread is active.
 	printk("In init module\n");
@@ -92,7 +101,7 @@ void thread_cleanup(void) {
 
 	//Free the PIN
 	gpio_free(GPIO_OUT6);
-
+	gpio_free(GPIO_OUT2);
 
 	int ret;
 	// the following doesn't actually stop the thread, but signals that

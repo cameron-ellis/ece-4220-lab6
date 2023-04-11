@@ -1,4 +1,4 @@
-obj-m+=Lab1.o
+obj-m+=Lab6_cdev_kmod.o
 ccflags-y := -std=gnu99 -Wno-declaration-after-statement
 
 all:

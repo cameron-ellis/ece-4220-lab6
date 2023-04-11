@@ -49,18 +49,37 @@
 #define __KERNEL__
 #endif
 
-#include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/types.h>
+#include <linux/interrupt.h>
+#include <linux/delay.h>
+#include <linux/kthread.h>	// for kthreads
+#include <linux/timer.h>
+#include <linux/io.h>
+#include <linux/slab.h>
+#include <linux/unistd.h>
 #include <linux/fs.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
+#include <linux/gpio.h>
 
 #define MSG_SIZE 40
 #define CDEV_NAME "Lab6"	// "YourDevName"
+#define GPIO_OUT6 (6)		// Speaker Pin
+#define GPIO_OUT2 (2)		// Red LED Pin
 
 MODULE_LICENSE("GPL");
  
 static int major; 
 static char msg[MSG_SIZE];
+
+// structure for the kthread.
+static struct task_struct *kthread1;
+static struct task_struct *kthread2;
+static struct task_struct *kthread3;
+static struct task_struct *kthread4;
+static struct task_struct *kthread5;
 
 // Function called when the user space program reads the character device.
 // Some arguments not used here.
@@ -116,6 +135,35 @@ static struct file_operations fops = {
 
 int cdev_module_init(void)
 {
+	// Check if SPKR PIN is Valid and available to be allocated 
+	// Set it to be output
+	if (gpio_is_valid(GPIO_OUT6) == 1)
+	{
+		if(gpio_request(GPIO_OUT6, "SPEAKER") == 0) 
+		{
+			gpio_direction_output(GPIO_OUT6, 0);
+		}
+	}
+	if (gpio_is_valid(GPIO_OUT2) == 1)
+	{
+		if(gpio_request(GPIO_OUT2, "RED LED") == 0) 
+		{
+			gpio_direction_output(GPIO_OUT2, 0);
+		}
+	}
+	
+	char kthread_name[]="SoundGeneration_kthread";	// try running  ps -ef | grep SoundGeneration
+													// when the thread is active.
+	printk("In init module\n");
+    	    
+    kthread1 = kthread_create(kthread_fn, NULL, kthread_name);
+	
+    if((kthread1))	// true if kthread creation is successful
+    {
+        printk("Inside if\n");
+		// kthread is dormant after creation. Needs to be woken up
+        wake_up_process(kthread1);
+    }
 	// register the Characted Device and obtain the major (assigned by the system)
 	major = register_chrdev(0, CDEV_NAME, &fops);
 	if (major < 0) {
@@ -133,7 +181,56 @@ void cdev_module_exit(void)
 	// even if the file /dev/YourDevName still exists. Give that a try...
 	unregister_chrdev(major, CDEV_NAME);
 	printk("Char Device /dev/%s unregistered.\n", CDEV_NAME);
-}  
+	//Free the PIN
+	gpio_free(GPIO_OUT6);
+	gpio_free(GPIO_OUT2);
+
+	int ret;
+	// the following doesn't actually stop the thread, but signals that
+	// the thread should stop itself (with do_exit above).
+	// kthread should not be called if the thread has already stopped.
+	ret = kthread_stop(kthread1);
+								
+	if(!ret)
+		printk("Kthread stopped\n");
+}
+
+// Function to be associated with the kthread; what the kthread executes.
+int kthread_fn(void *ptr)
+{
+	printk("In kthread_fn\n");
+
+	// The ktrhead does not need to run forever. It can execute something
+	// and then leave.
+	while(1)
+	{
+
+		// Write code to generate Frequency on BCM 6 (SPKR) (GPIO_OUT6)
+		gpio_set_value(GPIO_OUT6,1);
+		//gpio_set_value(GPIO_OUT2,1);
+		msleep(10);	// good for > 10 ms
+		gpio_set_value(GPIO_OUT6,0);
+		//gpio_set_value(GPIO_OUT2,0);
+		msleep(10);   // good for > 10 ms
+		//msleep_interruptible(1000); // good for > 10 ms
+		//udelay(unsigned long usecs);	// good for a few us (micro s)
+		//usleep_range(unsigned long min, unsigned long max); // good for 10us - 20 ms
+		
+		// In an infinite loop, you should check if the kthread_stop
+		// function has been called (e.g. in clean up module). If so,
+		// the kthread should exit. If this is not done, the thread
+		// will persist even after removing the module.
+		if(kthread_should_stop()) {
+			do_exit(0);
+		}
+				
+		// comment out if your loop is going "fast". You don't want to
+		// printk too often. Sporadically or every second or so, it's okay.
+		//printk("Count: %d\n", ++count);
+	}
+	
+	return 0;
+}
 
 module_init(cdev_module_init);
 module_exit(cdev_module_exit);
