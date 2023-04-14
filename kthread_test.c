@@ -38,10 +38,11 @@ int kthread_fn(void *ptr)
 		// Write code to generate Frequency on BCM 6 (SPKR) (GPIO_OUT6)
 		gpio_set_value(GPIO_OUT6,1);
 		//gpio_set_value(GPIO_OUT2,1);
-		msleep(10);	// good for > 10 ms
+		udelay(500);	// good for a few us (micro s)
 		gpio_set_value(GPIO_OUT6,0);
 		//gpio_set_value(GPIO_OUT2,0);
-		msleep(10);   // good for > 10 ms
+		udelay(500);	// good for a few us (micro s)
+		//msleep(10);   // good for > 10 ms
 		//msleep_interruptible(1000); // good for > 10 ms
 		//udelay(unsigned long usecs);	// good for a few us (micro s)
 		//usleep_range(unsigned long min, unsigned long max); // good for 10us - 20 ms

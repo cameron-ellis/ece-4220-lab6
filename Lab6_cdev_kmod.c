@@ -67,7 +67,6 @@
 #define MSG_SIZE 40
 #define CDEV_NAME "Lab6"	// "YourDevName"
 #define GPIO_OUT6 (6)		// Speaker Pin
-#define GPIO_OUT2 (2)		// Red LED Pin
 
 MODULE_LICENSE("GPL");
  
@@ -76,10 +75,6 @@ static char msg[MSG_SIZE];
 
 // structure for the kthread.
 static struct task_struct *kthread1;
-static struct task_struct *kthread2;
-static struct task_struct *kthread3;
-static struct task_struct *kthread4;
-static struct task_struct *kthread5;
 
 // Function called when the user space program reads the character device.
 // Some arguments not used here.
@@ -95,6 +90,11 @@ static ssize_t device_read(struct file *filp, char __user *buffer, size_t length
 	msg[0] = '\0';	// "Clear" the message, in case the device is read again.
 					// This way, the same message will not be read twice.
 					// Also convenient for checking if there is nothing new, in user space.
+	// Check if read error
+	if (dummy != 0)
+	{
+		printk("Device Read Fail!\n");
+	}
 	
 	return length;
 }
@@ -122,6 +122,12 @@ static ssize_t device_write(struct file *filp, const char __user *buff, size_t l
 	
 	// You may want to remove the following printk in your final version.
 	printk("Message from user space: %s\n", msg);
+
+	// Check if read error
+	if (dummy != 0)
+	{
+		printk("Device Read Fail!\n");
+	}
 	
 	return len;		// the number of bytes that were written to the Character Device.
 }
@@ -133,6 +139,56 @@ static struct file_operations fops = {
 	.write = device_write,
 };
 
+// Function to be associated with the kthread; what the kthread executes.
+int kthread_fn(void *ptr)
+{
+	printk("In kthread_fn\n");
+
+	int DELAY = 300;
+	// The ktrhead does not need to run forever. It can execute something
+	// and then leave.
+	while(1)
+	{
+		switch (msg[0])
+		{
+		case 'A':
+		case 'a':
+			DELAY = 400;
+			break;
+		case 'B':
+		case 'b':
+			DELAY = 500;
+			break;
+		case 'C':
+		case 'c':
+			DELAY = 600;
+			break;
+		case 'D':
+		case 'd':
+			DELAY = 700;
+			break;
+		case 'E':
+		case 'e':
+			DELAY = 800;
+			break;
+		default:
+			break;
+		}
+		
+		gpio_set_value(GPIO_OUT6, 1);
+		udelay(DELAY);	// good for a few us (micro s)
+		gpio_set_value(GPIO_OUT6, 0);
+		udelay(DELAY);	// good for a few us (micro s)
+
+		if(kthread_should_stop()) {
+			printk("exiting kthread\n");
+			do_exit(0);
+		}
+	}
+	
+	return 0;
+}
+
 int cdev_module_init(void)
 {
 	// Check if SPKR PIN is Valid and available to be allocated 
@@ -142,13 +198,6 @@ int cdev_module_init(void)
 		if(gpio_request(GPIO_OUT6, "SPEAKER") == 0) 
 		{
 			gpio_direction_output(GPIO_OUT6, 0);
-		}
-	}
-	if (gpio_is_valid(GPIO_OUT2) == 1)
-	{
-		if(gpio_request(GPIO_OUT2, "RED LED") == 0) 
-		{
-			gpio_direction_output(GPIO_OUT2, 0);
 		}
 	}
 	
@@ -183,7 +232,6 @@ void cdev_module_exit(void)
 	printk("Char Device /dev/%s unregistered.\n", CDEV_NAME);
 	//Free the PIN
 	gpio_free(GPIO_OUT6);
-	gpio_free(GPIO_OUT2);
 
 	int ret;
 	// the following doesn't actually stop the thread, but signals that
@@ -193,43 +241,6 @@ void cdev_module_exit(void)
 								
 	if(!ret)
 		printk("Kthread stopped\n");
-}
-
-// Function to be associated with the kthread; what the kthread executes.
-int kthread_fn(void *ptr)
-{
-	printk("In kthread_fn\n");
-
-	// The ktrhead does not need to run forever. It can execute something
-	// and then leave.
-	while(1)
-	{
-
-		// Write code to generate Frequency on BCM 6 (SPKR) (GPIO_OUT6)
-		gpio_set_value(GPIO_OUT6,1);
-		//gpio_set_value(GPIO_OUT2,1);
-		msleep(10);	// good for > 10 ms
-		gpio_set_value(GPIO_OUT6,0);
-		//gpio_set_value(GPIO_OUT2,0);
-		msleep(10);   // good for > 10 ms
-		//msleep_interruptible(1000); // good for > 10 ms
-		//udelay(unsigned long usecs);	// good for a few us (micro s)
-		//usleep_range(unsigned long min, unsigned long max); // good for 10us - 20 ms
-		
-		// In an infinite loop, you should check if the kthread_stop
-		// function has been called (e.g. in clean up module). If so,
-		// the kthread should exit. If this is not done, the thread
-		// will persist even after removing the module.
-		if(kthread_should_stop()) {
-			do_exit(0);
-		}
-				
-		// comment out if your loop is going "fast". You don't want to
-		// printk too often. Sporadically or every second or so, it's okay.
-		//printk("Count: %d\n", ++count);
-	}
-	
-	return 0;
 }
 
 module_init(cdev_module_init);
