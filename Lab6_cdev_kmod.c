@@ -67,24 +67,73 @@
 #define MSG_SIZE 40
 #define CDEV_NAME "Lab6"	// "YourDevName"
 #define GPIO_OUT6 (6)		// Speaker Pin
+#define BTN_1 (16)
+#define BTN_2 (17)
+#define BTN_3 (18)
+#define BTN_4 (19)
+#define BTN_5 (20)
 
 MODULE_LICENSE("GPL");
- 
+int DELAY = 300;
+int btn1_irq;
+int btn2_irq;
+int btn3_irq;
+int btn4_irq;
+int btn5_irq;
 static int major; 
 static char msg[MSG_SIZE];
 
 // structure for the kthread.
 static struct task_struct *kthread1;
 
+// Routine to handle button irqs
+static irqreturn_t btn_irq_handler(int irq, void *dev_id)
+{
+	printk(KERN_INFO "INTERRUPT OCCURRED\n");
+
+    // Check IRQ and turn certain tones accordingly
+	if (irq == btn1_irq)
+    {
+        msg[0] = 'A';
+		DELAY = 400;
+    }
+    else if (irq == btn2_irq)
+    {
+        msg[0] = 'B';
+		DELAY = 500;
+    }
+    else if (irq == btn3_irq)
+    {
+        msg[0] = 'C';
+		DELAY = 600;
+    }
+    else if (irq == btn4_irq)
+    {
+        msg[0] = 'D';
+		DELAY = 700;
+    }
+    else if (irq == btn5_irq)
+    {
+        msg[0] = 'E';
+		DELAY = 800;
+    }
+    else
+    {
+        printk(KERN_INFO "ERROR: UKNOWN IRQ\n");
+    }
+    
+	return IRQ_HANDLED;
+}
+
 // Function called when the user space program reads the character device.
 // Some arguments not used here.
 // buffer: data will be placed there, so it can go to user space
 // The global variable msg is used. Whatever is in that string will be sent to userspace.
 // Notice that the variable may be changed anywhere in the module...
-static ssize_t device_read(struct file *filp, char __user *buffer, size_t length, loff_t *offset)
+static ssize_t device_read(struct file *filp, char __user *read_buffer, size_t length, loff_t *offset)
 {
 	// Whatever is in msg will be placed into buffer, which will be copied into user space
-	ssize_t dummy = copy_to_user(buffer, msg, length);	// dummy will be 0 if successful
+	ssize_t dummy = copy_to_user(read_buffer, msg, length);	// dummy will be 0 if successful
 
 	// msg should be protected (e.g. semaphore). Not implemented here, but you can add it.
 	msg[0] = '\0';	// "Clear" the message, in case the device is read again.
@@ -143,38 +192,10 @@ static struct file_operations fops = {
 int kthread_fn(void *ptr)
 {
 	printk("In kthread_fn\n");
-
-	int DELAY = 300;
 	// The ktrhead does not need to run forever. It can execute something
 	// and then leave.
 	while(1)
 	{
-		switch (msg[0])
-		{
-		case 'A':
-		case 'a':
-			DELAY = 400;
-			break;
-		case 'B':
-		case 'b':
-			DELAY = 500;
-			break;
-		case 'C':
-		case 'c':
-			DELAY = 600;
-			break;
-		case 'D':
-		case 'd':
-			DELAY = 700;
-			break;
-		case 'E':
-		case 'e':
-			DELAY = 800;
-			break;
-		default:
-			break;
-		}
-		
 		gpio_set_value(GPIO_OUT6, 1);
 		udelay(DELAY);	// good for a few us (micro s)
 		gpio_set_value(GPIO_OUT6, 0);
@@ -200,6 +221,76 @@ int cdev_module_init(void)
 			gpio_direction_output(GPIO_OUT6, 0);
 		}
 	}
+
+	// Set Buttons to input
+    for (int i = 16; i < 20; i++)
+    {
+    	if (gpio_direction_input(i) == 0)
+    	{
+    		printk(KERN_INFO "GPIO %d set to input!\n", i);
+    	}
+    	else
+    	{
+    		printk(KERN_INFO "GPIO %d input set failed!\n", i);
+    	}
+    }
+    
+    // Setting GPIO Buttons to IRQ Numbers
+    btn1_irq = gpio_to_irq(BTN_1);
+    btn2_irq = gpio_to_irq(BTN_2);
+    btn3_irq = gpio_to_irq(BTN_3);
+    btn4_irq = gpio_to_irq(BTN_4);
+    btn5_irq = gpio_to_irq(BTN_5);
+    
+    // Btn1 IRQ Request
+    if (request_irq(btn1_irq,(void *)btn_irq_handler, IRQF_TRIGGER_RISING,"BTN_1_INTERRUPT",NULL) == 0)
+    {
+        printk(KERN_INFO "Request Btn1 IRQ Success!\n");
+    }
+    else
+    {
+        printk(KERN_INFO "Request Btn1 IRQ Failed!\n");
+    }
+
+    // Btn2 IRQ Request
+    if (request_irq(btn2_irq,(void *)btn_irq_handler, IRQF_TRIGGER_RISING,"BTN_2_INTERRUPT",NULL) == 0)
+    {
+        printk(KERN_INFO "Request Btn2 IRQ Success!\n");
+    }
+    else
+    {
+        printk(KERN_INFO "Request Btn2 IRQ Failed!\n");
+    }
+
+    // Btn3 IRQ Request
+    if (request_irq(btn3_irq,(void *)btn_irq_handler, IRQF_TRIGGER_RISING,"BTN_3_INTERRUPT",NULL) == 0)
+    {
+        printk(KERN_INFO "Request Btn3 IRQ Success!\n");
+    }
+    else
+    {
+        printk(KERN_INFO "Request Btn3 IRQ Failed!\n");
+    }
+
+    // Btn4 IRQ Request
+    if (request_irq(btn4_irq,(void *)btn_irq_handler, IRQF_TRIGGER_RISING,"BTN_4_INTERRUPT",NULL) == 0)
+    {
+        printk(KERN_INFO "Request Btn4 IRQ Success!\n");
+    }
+    else
+    {
+        printk(KERN_INFO "Request Btn4 IRQ Failed!\n");
+    }
+
+    // Btn5 IRQ Request
+    if (request_irq(btn5_irq,(void *)btn_irq_handler, IRQF_TRIGGER_RISING,"BTN_5_INTERRUPT",NULL) == 0)
+    {
+        printk(KERN_INFO "Request Btn5 IRQ Success!\n");
+    }
+    else
+    {
+        printk(KERN_INFO "Request Btn5 IRQ Failed!\n");
+    }
 	
 	char kthread_name[]="SoundGeneration_kthread";	// try running  ps -ef | grep SoundGeneration
 													// when the thread is active.
@@ -232,6 +323,25 @@ void cdev_module_exit(void)
 	printk("Char Device /dev/%s unregistered.\n", CDEV_NAME);
 	//Free the PIN
 	gpio_free(GPIO_OUT6);
+
+	// Free irqs for Buttons
+    free_irq(btn1_irq,NULL);
+    printk(KERN_INFO "Freed Btn1 IRQ\n");
+    free_irq(btn2_irq,NULL);
+    printk(KERN_INFO "Freed Btn2 IRQ\n");
+    free_irq(btn3_irq,NULL);
+    printk(KERN_INFO "Freed Btn3 IRQ\n");
+    free_irq(btn4_irq,NULL);
+    printk(KERN_INFO "Freed Btn4 IRQ\n");
+    free_irq(btn5_irq,NULL);
+    printk(KERN_INFO "Freed Btn5 IRQ\n");
+
+	// Free Button GPIOs
+    for (int i = 16; i < 21; i++)
+    {
+    	gpio_free(i);
+    	printk(KERN_INFO "GPIO %d freed!\n", i);
+    }
 
 	int ret;
 	// the following doesn't actually stop the thread, but signals that
